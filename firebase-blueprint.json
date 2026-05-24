@@ -1,0 +1,196 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Profil hak akses pengguna aplikasi Forsdig Simpan Pinjam",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "bendahara", "kasir", "anggota"] },
+        "phone": { "type": "string" },
+        "branch": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      },
+      "required": ["id", "name", "email", "role", "status"]
+    },
+    "Anggota": {
+      "title": "Member Profile",
+      "description": "Data lengkap anggota koperasi simpan pinjam",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "memberNumber": { "type": "string" },
+        "name": { "type": "string" },
+        "nik": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "occupation": { "type": "string" },
+        "joinDate": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      },
+      "required": ["id", "memberNumber", "name", "nik", "address", "phone", "joinDate", "status"]
+    },
+    "Simpanan": {
+      "title": "Savings Entry",
+      "description": "Mutasi simpanan pokok / wajib / sukarela anggota",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "memberId": { "type": "string" },
+        "memberName": { "type": "string" },
+        "memberNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string", "enum": ["pokok", "wajib", "sukarela"] },
+        "mutation": { "type": "string", "enum": ["setor", "tarik"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "memberId", "date", "type", "mutation", "amount", "createdBy"]
+    },
+    "Pinjaman": {
+      "title": "Loan Account",
+      "description": "Akun pinjaman anggota koperasi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "memberId": { "type": "string" },
+        "memberName": { "type": "string" },
+        "memberNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string", "enum": ["pendidikan", "modal_usaha", "konsumtif", "darurat"] },
+        "amount": { "type": "number" },
+        "interestRate": { "type": "number" },
+        "tenor": { "type": "number" },
+        "purpose": { "type": "string" },
+        "guaranteeName": { "type": "string" },
+        "guaranteeFile": { "type": "string" },
+        "monthlyInstallment": { "type": "number" },
+        "remainingBalance": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "disetujui", "lunas", "menunggak", "ditolak"] },
+        "approvedBy": { "type": "string" },
+        "approvalDate": { "type": "string" }
+      },
+      "required": ["id", "memberId", "date", "type", "amount", "interestRate", "tenor", "status"]
+    },
+    "Angsuran": {
+      "title": "Installment Schedule",
+      "description": "Catatan pembayaran angsuran cicilan pinjaman anggota",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "loanId": { "type": "string" },
+        "memberId": { "type": "string" },
+        "memberName": { "type": "string" },
+        "memberNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "installmentNumber": { "type": "number" },
+        "amount": { "type": "number" },
+        "principal": { "type": "number" },
+        "interest": { "type": "number" },
+        "penalty": { "type": "number" },
+        "paymentDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["paid", "unpaid"] },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "loanId", "memberId", "date", "installmentNumber", "amount", "status"]
+    },
+    "AccountCOA": {
+      "title": "Chart Of Account",
+      "description": "Master No Rekening Akuntansi Koperasi",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["aset", "kewajiban", "ekuitas", "pendapatan", "beban"] },
+        "balance": { "type": "number" }
+      },
+      "required": ["code", "name", "category", "balance"]
+    },
+    "JurnalEntry": {
+      "title": "Journal Entry",
+      "description": "Posting jurnal umum akuntansi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "refNumber": { "type": "string" },
+        "description": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "date", "refNumber", "description", "createdBy"]
+    },
+    "KasEntry": {
+      "title": "Cash Movement",
+      "description": "Kas Masuk dan Kas Keluar Koperasi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string", "enum": ["masuk", "keluar"] },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "attachment": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "date", "type", "category", "amount", "createdBy"]
+    },
+    "ActivityLog": {
+      "title": "System Activity Log",
+      "description": "Log audit jejak aktivitas sistem koperasi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "userId", "userName", "userRole", "action"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Data hak akses dan status admin / pengurus koperasi"
+    },
+    "anggota": {
+      "schema": { "$ref": "#/entities/Anggota" },
+      "description": "Master data anggota Forsdig Simpan Pinjam"
+    },
+    "simpanan": {
+      "schema": { "$ref": "#/entities/Simpanan" },
+      "description": "Mutasi transaksi simpanan anggota"
+    },
+    "pinjaman": {
+      "schema": { "$ref": "#/entities/Pinjaman" },
+      "description": "Data kredit/pinjaman anggota"
+    },
+    "angsuran": {
+      "schema": { "$ref": "#/entities/Angsuran" },
+      "description": "Histori cicilan angsuran pinjaman"
+    },
+    "coa": {
+      "schema": { "$ref": "#/entities/AccountCOA" },
+      "description": "Daftar Nomor Rekening / Bagan Akun (COA)"
+    },
+    "jurnal": {
+      "schema": { "$ref": "#/entities/JurnalEntry" },
+      "description": "Buku jurnal akuntansi koperasi"
+    },
+    "kas": {
+      "schema": { "$ref": "#/entities/KasEntry" },
+      "description": "Arus kas masuk dan keluar operasional"
+    },
+    "logs": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Jejak audit sistem koperasi"
+    }
+  }
+}
