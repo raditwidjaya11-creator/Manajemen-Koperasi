@@ -77,25 +77,25 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     <div id="layout-root" className="min-h-screen flex bg-slate-50 dark:bg-[#0c111d] text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200">
       
       {/* SIDEBAR ON DESKTOP */}
-      <aside id="desktop-sidebar" className="hidden lg:flex flex-col w-72 bg-gradient-to-br from-[#064e3b] to-[#065f46] border-r border-emerald-800/40 text-white shrink-0">
+      <aside id="desktop-sidebar" className="hidden lg:flex flex-col w-72 bg-gradient-to-br from-[#0f172a] to-[#1e3a8a] border-r border-blue-900/40 text-white shrink-0">
         
         {/* Logo and Brand */}
-        <div className="p-6 border-b border-emerald-800/50">
+        <div className="p-6 border-b border-blue-900/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#D4AF37] rounded-lg flex items-center justify-center font-bold text-emerald-950 text-xl shadow-md">
-              <span className="font-extrabold text-xl text-emerald-950">F</span>
+            <div className="w-10 h-10 bg-[#D4AF37] rounded-lg flex items-center justify-center font-bold text-blue-950 text-xl shadow-md">
+              <span className="font-extrabold text-xl text-blue-950">F</span>
             </div>
             <div>
-              <h1 className="font-bold text-lg leading-tight tracking-tight text-white">Forsdig</h1>
-              <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-semibold">Simpan Pinjam</p>
+              <h1 className="font-bold text-lg leading-tight tracking-tight text-white">Foresyndo</h1>
+              <p className="text-[10px] uppercase tracking-widest text-[#D4AF37] font-semibold">Coop & Simpan Pinjam</p>
             </div>
           </div>
         </div>
 
         {/* Current profile info box */}
-        <div className="p-4 mx-4 my-3 bg-emerald-900/40 rounded-xl border border-emerald-800/30">
+        <div className="p-4 mx-4 my-3 bg-blue-950/45 rounded-xl border border-blue-900/30">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-emerald-700/60 text-[#D4AF37] rounded-full flex items-center justify-center font-bold border border-[#D4AF37]/40 shadow-xs">
+            <div className="h-10 w-10 bg-blue-850/60 text-[#D4AF37] rounded-full flex items-center justify-center font-bold border border-[#D4AF37]/40 shadow-xs">
               {currentUser.name.charAt(0)}
             </div>
             <div className="overflow-hidden">
@@ -109,7 +109,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
         {/* Navigation list */}
         <nav id="desktop-nav" className="flex-1 py-4 overflow-y-auto space-y-1">
-          <div className="px-6 py-2 text-[10px] font-bold text-emerald-300 uppercase tracking-widest opacity-60">Main Menu</div>
+          <div className="px-6 py-2 text-[10px] font-bold text-blue-200 uppercase tracking-widest opacity-60">Main Menu</div>
           {filteredNavItems.map(item => {
             const IconComponent = item.icon;
             const isActive = currentView === item.view;
@@ -121,10 +121,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 className={`w-full flex items-center gap-3.5 px-6 py-3 border-l-4 transition-all ${
                   isActive 
                     ? 'bg-white/15 border-l-4 border-[#D4AF37] text-white font-semibold' 
-                    : 'border-l-transparent text-emerald-100 hover:bg-white/10 hover:text-white'
+                    : 'border-l-transparent text-blue-100 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <IconComponent className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-[#D4AF37]' : 'text-emerald-300/80'}`} />
+                <IconComponent className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-[#D4AF37]' : 'text-blue-200/80'}`} />
                 <span className="text-sm font-medium">{item.name}</span>
               </button>
             );
@@ -132,8 +132,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </nav>
 
         {/* Workspace Footer and Session */}
-        <div className="p-4 border-t border-emerald-800/50 space-y-2">
-          <div className="flex items-center justify-between text-xs text-emerald-300/80 px-2 font-mono">
+        <div className="p-4 border-t border-blue-900/50 space-y-2">
+          <div className="flex items-center justify-between text-xs text-blue-200/80 px-2 font-mono">
             <span className="flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
               06:59 UTC
@@ -143,7 +143,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           <button
             id="btn-logout-desktop"
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-emerald-950/60 hover:bg-red-950/80 text-slate-300 hover:text-white border border-emerald-800/40 hover:border-red-900 text-xs font-semibold transition-all mt-1"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-blue-950/60 hover:bg-blue-950/80 text-slate-300 hover:text-white border border-blue-900/40 hover:border-blue-900 text-xs font-semibold transition-all mt-1"
           >
             <LogOut className="h-4 w-4 text-[#D4AF37]" />
             <span>Keluar Sistem</span>
@@ -169,30 +169,30 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
-              className="lg:hidden fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-gradient-to-br from-[#064e3b] to-[#065f46] border-r border-emerald-850 text-white z-50 flex flex-col shadow-2xl"
+              className="lg:hidden fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-gradient-to-br from-[#0f172a] to-[#1e3a8a] border-r border-blue-900/40 text-white z-50 flex flex-col shadow-2xl"
             >
-              <div className="p-5 border-b border-emerald-800/50 flex items-center justify-between">
+              <div className="p-5 border-b border-blue-900/50 flex items-center justify-between">
                 <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 bg-[#D4AF37] rounded-lg flex items-center justify-center font-bold text-emerald-950 text-xl shadow-md">
-                    <span className="font-extrabold text-xl text-emerald-950">F</span>
+                  <div className="w-10 h-10 bg-[#D4AF37] rounded-lg flex items-center justify-center font-bold text-blue-950 text-xl shadow-md">
+                    <span className="font-extrabold text-xl text-blue-950">F</span>
                   </div>
                   <div>
-                    <h1 className="font-bold text-base leading-tight">Forsdig</h1>
-                    <span className="text-[10px] font-bold tracking-wider text-[#D4AF37]">SIMPAN PINJAM</span>
+                    <h1 className="font-bold text-base leading-tight">Foresyndo</h1>
+                    <span className="text-[10px] font-bold tracking-wider text-[#D4AF37]">COOP & SIMPAN PINJAM</span>
                   </div>
                 </div>
                 <button
                   id="btn-close-mobile-menu"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 rounded-lg bg-emerald-900 text-slate-300 hover:text-white"
+                  className="p-1.5 rounded-lg bg-blue-900 text-slate-300 hover:text-white"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
               {/* Profile */}
-              <div className="p-4 mx-4 my-2.5 bg-emerald-900/40 rounded-xl flex items-center gap-3 border border-emerald-800/30">
-                <div className="h-9 w-9 bg-emerald-700/60 rounded-full flex items-center justify-center font-bold text-[#D4AF37]">
+              <div className="p-4 mx-4 my-2.5 bg-blue-900/40 rounded-xl flex items-center gap-3 border border-blue-800/30">
+                <div className="h-9 w-9 bg-blue-800/60 rounded-full flex items-center justify-center font-bold text-[#D4AF37]">
                   {currentUser.name.charAt(0)}
                 </div>
                 <div>
@@ -205,7 +205,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
               {/* Nav menu links */}
               <nav id="mobile-nav" className="flex-1 py-3 overflow-y-auto space-y-1">
-                <div className="px-6 py-2 text-[10px] font-bold text-emerald-300 uppercase tracking-widest opacity-60">Main Menu</div>
+                <div className="px-6 py-2 text-[10px] font-bold text-blue-200 uppercase tracking-widest opacity-60">Main Menu</div>
                 {filteredNavItems.map(item => {
                   const IconComponent = item.icon;
                   const isActive = currentView === item.view;
@@ -220,21 +220,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                       className={`w-full flex items-center gap-3.5 px-6 py-2.5 border-l-4 transition-all ${
                         isActive 
                           ? 'bg-white/15 border-l-4 border-[#D4AF37] text-white font-semibold' 
-                          : 'border-l-transparent text-emerald-100 hover:bg-white/10 hover:text-white'
+                          : 'border-l-transparent text-blue-100 hover:bg-white/10 hover:text-white'
                       }`}
                     >
-                      <IconComponent className={`h-4.5 w-4.5 text-emerald-300 ${isActive ? 'text-[#D4AF37]' : 'text-emerald-305/80'}`} />
+                      <IconComponent className={`h-4.5 w-4.5 text-blue-200 ${isActive ? 'text-[#D4AF37]' : 'text-blue-200/80'}`} />
                       <span className="text-sm font-medium">{item.name}</span>
                     </button>
                   );
                 })}
               </nav>
 
-              <div className="p-4 border-t border-emerald-800/50 gap-2 flex flex-col">
+              <div className="p-4 border-t border-blue-800/50 gap-2 flex flex-col">
                 <button
                   id="btn-logout-mobile"
                   onClick={logout}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-emerald-950/60 hover:bg-red-950/80 text-slate-300 font-medium text-sm border border-emerald-800/20 shadow-xs"
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-blue-950/60 hover:bg-blue-950/80 text-slate-300 font-medium text-sm border border-blue-800/20 shadow-xs"
                 >
                   <LogOut className="h-4 w-4 text-[#D4AF37]" />
                   <span>Keluar</span>
@@ -261,12 +261,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               <Menu className="h-5.5 w-5.5" />
             </button>
             <div className="hidden lg:flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
-              <span className="font-bold text-emerald-800 dark:text-emerald-500">Forsdig Simpan Pinjam</span>
+              <span className="font-bold text-blue-700 dark:text-sky-400">Foresyndo Coop</span>
               <span className="text-slate-300 dark:text-slate-700">/</span>
               <span className="capitalize font-semibold text-slate-800 dark:text-slate-100">{currentView.replace('_', ' ')}</span>
             </div>
             <div className="lg:hidden">
-              <span className="font-extrabold text-[#0d2a1d] dark:text-emerald-400 text-base">Forsdig Coop</span>
+              <span className="font-extrabold text-blue-700 dark:text-sky-400 text-base">Foresyndo Coop</span>
             </div>
           </div>
 
@@ -297,7 +297,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
             {/* Quick Profile Panel */}
             <div className="flex items-center gap-2.5 pl-2.5 border-l border-slate-200 dark:border-slate-850">
-              <div className="h-8.5 w-8.5 bg-gradient-to-tr from-emerald-600 to-emerald-800 rounded-full flex items-center justify-center font-bold text-amber-300 shadow-sm">
+              <div className="h-8.5 w-8.5 bg-gradient-to-tr from-blue-600 to-blue-800 rounded-full flex items-center justify-center font-bold text-amber-300 shadow-sm">
                 {currentUser.name.charAt(0)}
               </div>
               <div className="hidden sm:block">

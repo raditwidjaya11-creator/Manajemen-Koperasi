@@ -23,6 +23,18 @@ import {
   INITIAL_JURNAL, 
   INITIAL_LOGS 
 } from '../utils/seedData';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  getDocs, 
+  getDoc,
+  onSnapshot
+} from 'firebase/firestore';
+import { db, auth, OperationType, handleFirestoreError, testConnection } from '../firebase/firebase';
 
 interface CooperativeContextType {
   currentUser: AppUser | null;
@@ -84,7 +96,7 @@ interface CooperativeContextType {
   importBackup: (json: string) => boolean;
   resetCooperativeToSeed: () => void;
 
-  // Cooperative administrative settings (Chairman, Admin, Collector lists)
+  // Cooperative administrative settings
   cooperativeSettings: CooperativeSettings;
   updateCooperativeSettings: (settings: Partial<CooperativeSettings>) => void;
 }
@@ -92,55 +104,10 @@ interface CooperativeContextType {
 const CooperativeContext = createContext<CooperativeContextType | undefined>(undefined);
 
 export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Primary States with LocalStorage Hydration
+  // Local persistent values for user and dark mode UI
   const [currentUser, setCurrentUserUI] = useState<AppUser | null>(() => {
     const saved = localStorage.getItem('fsp_current_user');
-    return saved ? JSON.parse(saved) : INITIAL_USERS[0]; // Auto log in as Super Admin for demonstration (Radit Widjaya)
-  });
-
-  const [users, setUsers] = useState<AppUser[]>(() => {
-    const saved = localStorage.getItem('fsp_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
-  });
-
-  const [anggota, setAnggota] = useState<Anggota[]>(() => {
-    const saved = localStorage.getItem('fsp_anggota');
-    return saved ? JSON.parse(saved) : INITIAL_ANGGOTA;
-  });
-
-  const [simpanan, setSimpanan] = useState<Simpanan[]>(() => {
-    const saved = localStorage.getItem('fsp_simpanan');
-    return saved ? JSON.parse(saved) : INITIAL_SIMPANAN;
-  });
-
-  const [pinjaman, setPinjaman] = useState<Pinjaman[]>(() => {
-    const saved = localStorage.getItem('fsp_pinjaman');
-    return saved ? JSON.parse(saved) : INITIAL_PINJAMAN;
-  });
-
-  const [angsuran, setAngsuran] = useState<Angsuran[]>(() => {
-    const saved = localStorage.getItem('fsp_angsuran');
-    return saved ? JSON.parse(saved) : INITIAL_ANGSURAN;
-  });
-
-  const [coa, setCoa] = useState<AccountCOA[]>(() => {
-    const saved = localStorage.getItem('fsp_coa');
-    return saved ? JSON.parse(saved) : INITIAL_COA;
-  });
-
-  const [jurnal, setJurnal] = useState<JurnalEntry[]>(() => {
-    const saved = localStorage.getItem('fsp_jurnal');
-    return saved ? JSON.parse(saved) : INITIAL_JURNAL;
-  });
-
-  const [kas, setKas] = useState<KasEntry[]>(() => {
-    const saved = localStorage.getItem('fsp_kas');
-    return saved ? JSON.parse(saved) : INITIAL_KAS;
-  });
-
-  const [logs, setLogs] = useState<ActivityLog[]>(() => {
-    const saved = localStorage.getItem('fsp_logs');
-    return saved ? JSON.parse(saved) : INITIAL_LOGS;
+    return saved ? JSON.parse(saved) : INITIAL_USERS[0];
   });
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -149,90 +116,143 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
 
-  const [cooperativeSettings, setCooperativeSettings] = useState<CooperativeSettings>(() => {
-    const saved = localStorage.getItem('fsp_settings');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (!parsed.collectors) {
-          parsed.collectors = [
-            { id: 'COLL-001', name: 'Budi Santoso', phone: '081234567891', email: 'budi.santoso@forsdig.com' },
-            { id: 'COLL-002', name: 'Rian Wijaya', phone: '081234567892', email: 'rian.wijaya@forsdig.com' }
-          ];
-        } else {
-          // Backward compatibility check to ensure existing cached collectors have phone/email fields
-          parsed.collectors = parsed.collectors.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            phone: c.phone || '081234567890',
-            email: c.email || `${c.name.toLowerCase().replace(/\s+/g, '.')}@forsdig.com`
-          }));
-        }
-        return parsed;
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return {
-      adminName: 'Retno Putri',
-      ketuaName: 'M. Yusuf Syahrial, SE',
-      collectorName: 'Budi Santoso',
-      collectors: [
-        { id: 'COLL-001', name: 'Budi Santoso', phone: '081234567891', email: 'budi.santoso@forsdig.com' },
-        { id: 'COLL-002', name: 'Rian Wijaya', phone: '081234567892', email: 'rian.wijaya@forsdig.com' }
-      ]
-    };
+  // Firestore sync targets
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [anggota, setAnggota] = useState<Anggota[]>([]);
+  const [simpanan, setSimpanan] = useState<Simpanan[]>([]);
+  const [pinjaman, setPinjaman] = useState<Pinjaman[]>([]);
+  const [angsuran, setAngsuran] = useState<Angsuran[]>([]);
+  const [coa, setCoa] = useState<AccountCOA[]>([]);
+  const [jurnal, setJurnal] = useState<JurnalEntry[]>([]);
+  const [kas, setKas] = useState<KasEntry[]>([]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [cooperativeSettings, setCooperativeSettings] = useState<CooperativeSettings>({
+    adminName: 'Retno Putri',
+    ketuaName: 'M. Yusuf Syahrial, SE',
+    collectorName: 'Budi Santoso',
+    collectors: [
+      { id: 'COLL-001', name: 'Budi Santoso', phone: '081234567891', email: 'budi.santoso@forsdig.com' },
+      { id: 'COLL-002', name: 'Rian Wijaya', phone: '081234567892', email: 'rian.wijaya@forsdig.com' }
+    ]
   });
 
-  // Track & Persist to LocalStorage
+  // Test connection and auto seed if empty
   useEffect(() => {
-    localStorage.setItem('fsp_settings', JSON.stringify(cooperativeSettings));
-  }, [cooperativeSettings]);
+    const initializeData = async () => {
+      try {
+        await testConnection();
+        const coaSnap = await getDocs(collection(db, 'coa'));
+        if (coaSnap.empty) {
+          console.log('Firestore is empty. Initializing with seed data...');
+          const seedJobs = [
+            { path: 'users', list: INITIAL_USERS },
+            { path: 'anggota', list: INITIAL_ANGGOTA },
+            { path: 'simpanan', list: INITIAL_SIMPANAN },
+            { path: 'pinjaman', list: INITIAL_PINJAMAN },
+            { path: 'angsuran', list: INITIAL_ANGSURAN },
+            { path: 'coa', list: INITIAL_COA },
+            { path: 'jurnal', list: INITIAL_JURNAL },
+            { path: 'kas', list: INITIAL_KAS },
+            { path: 'logs', list: INITIAL_LOGS },
+          ];
 
-  const updateCooperativeSettings = (newSettings: Partial<CooperativeSettings>) => {
-    setCooperativeSettings(prev => ({
-      ...prev,
-      ...newSettings
-    }));
-  };
+          for (const job of seedJobs) {
+            for (const item of job.list) {
+              const docId = (item as any).id || (item as any).code;
+              await setDoc(doc(db, job.path, docId), item);
+            }
+          }
 
-  // Track & Persist to LocalStorage
+          const initialSettings = {
+            adminName: 'Retno Putri',
+            ketuaName: 'M. Yusuf Syahrial, SE',
+            collectorName: 'Budi Santoso',
+            collectors: [
+              { id: 'COLL-001', name: 'Budi Santoso', phone: '081234567891', email: 'budi.santoso@forsdig.com' },
+              { id: 'COLL-002', name: 'Rian Wijaya', phone: '081234567892', email: 'rian.wijaya@forsdig.com' }
+            ]
+          };
+          await setDoc(doc(db, 'settings', 'cooperative'), initialSettings);
+        }
+      } catch (error) {
+        console.error('Initial seeding or connection test failed:', error);
+      }
+    };
+    initializeData();
+  }, []);
+
+  // Set up real-time bidirectional listeners to synchronize data automatically
   useEffect(() => {
-    localStorage.setItem('fsp_users', JSON.stringify(users));
-  }, [users]);
+    const unsubs = [
+      onSnapshot(collection(db, 'users'), (snap) => {
+        const data: AppUser[] = [];
+        snap.forEach(d => data.push(d.data() as AppUser));
+        if (data.length > 0) setUsers(data);
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'users')),
 
-  useEffect(() => {
-    localStorage.setItem('fsp_anggota', JSON.stringify(anggota));
-  }, [anggota]);
+      onSnapshot(collection(db, 'anggota'), (snap) => {
+        const data: Anggota[] = [];
+        snap.forEach(d => data.push(d.data() as Anggota));
+        setAnggota(data.sort((a, b) => b.id.localeCompare(a.id)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'anggota')),
 
-  useEffect(() => {
-    localStorage.setItem('fsp_simpanan', JSON.stringify(simpanan));
-  }, [simpanan]);
+      onSnapshot(collection(db, 'simpanan'), (snap) => {
+        const data: Simpanan[] = [];
+        snap.forEach(d => data.push(d.data() as Simpanan));
+        setSimpanan(data.sort((a, b) => b.id.localeCompare(a.id)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'simpanan')),
 
-  useEffect(() => {
-    localStorage.setItem('fsp_pinjaman', JSON.stringify(pinjaman));
-  }, [pinjaman]);
+      onSnapshot(collection(db, 'pinjaman'), (snap) => {
+        const data: Pinjaman[] = [];
+        snap.forEach(d => data.push(d.data() as Pinjaman));
+        setPinjaman(data.sort((a, b) => b.id.localeCompare(a.id)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'pinjaman')),
 
-  useEffect(() => {
-    localStorage.setItem('fsp_angsuran', JSON.stringify(angsuran));
-  }, [angsuran]);
+      onSnapshot(collection(db, 'angsuran'), (snap) => {
+        const data: Angsuran[] = [];
+        snap.forEach(d => data.push(d.data() as Angsuran));
+        setAngsuran(data.sort((a, b) => b.id.localeCompare(a.id)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'angsuran')),
 
-  useEffect(() => {
-    localStorage.setItem('fsp_coa', JSON.stringify(coa));
-  }, [coa]);
+      onSnapshot(collection(db, 'coa'), (snap) => {
+        const data: AccountCOA[] = [];
+        snap.forEach(d => data.push(d.data() as AccountCOA));
+        if (data.length > 0) {
+          setCoa(data.sort((a, b) => a.code.localeCompare(b.code)));
+        }
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'coa')),
 
-  useEffect(() => {
-    localStorage.setItem('fsp_jurnal', JSON.stringify(jurnal));
-  }, [jurnal]);
+      onSnapshot(collection(db, 'jurnal'), (snap) => {
+        const data: JurnalEntry[] = [];
+        snap.forEach(d => data.push(d.data() as JurnalEntry));
+        setJurnal(data.sort((a, b) => b.id.localeCompare(a.id)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'jurnal')),
 
-  useEffect(() => {
-    localStorage.setItem('fsp_kas', JSON.stringify(kas));
-  }, [kas]);
+      onSnapshot(collection(db, 'kas'), (snap) => {
+        const data: KasEntry[] = [];
+        snap.forEach(d => data.push(d.data() as KasEntry));
+        setKas(data.sort((a, b) => b.id.localeCompare(a.id)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'kas')),
 
-  useEffect(() => {
-    localStorage.setItem('fsp_logs', JSON.stringify(logs));
-  }, [logs]);
+      onSnapshot(collection(db, 'logs'), (snap) => {
+        const data: ActivityLog[] = [];
+        snap.forEach(d => data.push(d.data() as ActivityLog));
+        setLogs(data.sort((a, b) => b.id.localeCompare(a.id)));
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'logs')),
 
+      onSnapshot(doc(db, 'settings', 'cooperative'), (snap) => {
+        if (snap.exists()) {
+          setCooperativeSettings(snap.data() as CooperativeSettings);
+        }
+      }, (error) => handleFirestoreError(error, OperationType.GET, 'settings/cooperative')),
+    ];
+
+    return () => {
+      unsubs.forEach(unsub => unsub());
+    };
+  }, []);
+
+  // UI state persistence
   useEffect(() => {
     localStorage.setItem('fsp_current_user', currentUser ? JSON.stringify(currentUser) : '');
   }, [currentUser]);
@@ -246,10 +266,22 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [darkMode]);
 
-  // Global logging helper
-  const addLog = (action: string, details: string) => {
+  const updateCooperativeSettings = async (newSettings: Partial<CooperativeSettings>) => {
+    try {
+      const updated = {
+        ...cooperativeSettings,
+        ...newSettings
+      };
+      await setDoc(doc(db, 'settings', 'cooperative'), updated);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'settings/cooperative');
+    }
+  };
+
+  const addLog = async (action: string, details: string) => {
+    const logId = `log-${Date.now()}`;
     const newLog: ActivityLog = {
-      id: `log-${Date.now()}`,
+      id: logId,
       timestamp: new Date().toISOString(),
       userId: currentUser?.id || 'guest',
       userName: currentUser?.name || 'Guest User',
@@ -257,24 +289,26 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
       action,
       details
     };
-    setLogs(prev => [newLog, ...prev]);
+    try {
+      await setDoc(doc(db, 'logs', logId), newLog);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `logs/${logId}`);
+    }
   };
 
-  // Login handlers
   const login = async (email: string, password?: string): Promise<boolean> => {
     const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (found && found.status === 'active') {
       setCurrentUserUI(found);
-      addLog('Login', `User ${found.name} login via email/password`);
+      await addLog('Login', `User ${found.name} login via email/password`);
       return true;
     }
     return false;
   };
 
   const loginGoogle = async (): Promise<boolean> => {
-    // For local fallback and testing, log in with main profile or create random
     setCurrentUserUI(INITIAL_USERS[0]);
-    addLog('Login Google', `User ${INITIAL_USERS[0].name} melakukan login Google Auth`);
+    await addLog('Login Google', `User ${INITIAL_USERS[0].name} melakukan login Google Auth`);
     return true;
   };
 
@@ -285,32 +319,31 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const toggleDarkMode = () => setDarkMode(!darkMode);
 
-  // Helper to adjust COA accounts ledger balances
-  const adjustCOABalance = (code: string, debitAmount: number, creditAmount: number) => {
-    setCoa(prevCoa => {
-      return prevCoa.map(account => {
-        if (account.code === code) {
-          let change = 0;
-          // Normal balance rules:
-          // assets & expenses (aset & beban): + with Debits, - with Credits
-          // liabilities, equity & revenues (kewajiban, ekuitas, pendapatan): + with Credits, - with Debits
-          if (account.category === 'aset' || account.category === 'beban') {
-            change = debitAmount - creditAmount;
-          } else {
-            change = creditAmount - debitAmount;
-          }
-          return {
-            ...account,
-            balance: account.balance + change
-          };
-        }
-        return account;
+  // Helper to adjust COA balances in Firestore
+  const adjustCOABalance = async (code: string, debitAmount: number, creditAmount: number) => {
+    const account = coa.find(a => a.code === code);
+    if (!account) return;
+    let change = 0;
+    if (account.category === 'aset' || account.category === 'beban') {
+      change = debitAmount - creditAmount;
+    } else {
+      change = creditAmount - debitAmount;
+    }
+    try {
+      await updateDoc(doc(db, 'coa', code), {
+        balance: account.balance + change
       });
-    });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `coa/${code}`);
+    }
   };
 
   // Post dynamic Journal entries automatically from operations
-  const postAutoJournal = (description: string, debits: {code: string, name: string, amount: number}[], credits: {code: string, name: string, amount: number}[]) => {
+  const postAutoJournal = async (
+    description: string, 
+    debits: {code: string, name: string, amount: number}[], 
+    credits: {code: string, name: string, amount: number}[]
+  ) => {
     const journalId = `jr-${Date.now()}`;
     const refNum = `JU-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     
@@ -328,15 +361,23 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
       createdBy: currentUser?.name || 'Sistem Otomatis'
     };
 
-    setJurnal(prev => [newEntry, ...prev]);
-
-    // Apply adjustments to balance sheets under standard double entry accounting
-    debits.forEach(d => adjustCOABalance(d.code, d.amount, 0));
-    credits.forEach(c => adjustCOABalance(c.code, 0, c.amount));
+    try {
+      await setDoc(doc(db, 'jurnal', journalId), newEntry);
+      
+      // Apply adjustments standard double entry bookkeeping
+      for (const d of debits) {
+        await adjustCOABalance(d.code, d.amount, 0);
+      }
+      for (const c of credits) {
+        await adjustCOABalance(c.code, 0, c.amount);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `jurnal/${journalId}`);
+    }
   };
 
   // —— MEMBERS CONTROLLER ——
-  const addAnggota = (data: Omit<Anggota, 'id' | 'memberNumber'>) => {
+  const addAnggota = async (data: Omit<Anggota, 'id' | 'memberNumber'>) => {
     const newId = `agt-${Date.now()}`;
     const dateObj = new Date();
     const formattedYear = dateObj.getFullYear();
@@ -350,24 +391,36 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
       photoUrl: data.photoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
     };
 
-    setAnggota(prev => [newMember, ...prev]);
-    addLog('Tambah Anggota', `Mendaftarkan anggota baru ${data.name} dengan No Anggota ${memberNo}`);
+    try {
+      await setDoc(doc(db, 'anggota', newId), newMember);
+      await addLog('Tambah Anggota', `Mendaftarkan anggota baru ${data.name} dengan No Anggota ${memberNo}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `anggota/${newId}`);
+    }
   };
 
-  const updateAnggota = (id: string, data: Partial<Anggota>) => {
-    setAnggota(prev => prev.map(m => m.id === id ? { ...m, ...data } as Anggota : m));
-    const target = anggota.find(m => m.id === id);
-    addLog('Edit Anggota', `Memperbarui data anggota ${target?.name || id}`);
+  const updateAnggota = async (id: string, data: Partial<Anggota>) => {
+    try {
+      await updateDoc(doc(db, 'anggota', id), data);
+      const target = anggota.find(m => m.id === id);
+      await addLog('Edit Anggota', `Memperbarui data anggota ${target?.name || id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `anggota/${id}`);
+    }
   };
 
-  const deleteAnggota = (id: string) => {
-    const target = anggota.find(m => m.id === id);
-    setAnggota(prev => prev.filter(m => m.id !== id));
-    addLog('Hapus Anggota', `Menghapus anggota ${target?.name || id} dari database`);
+  const deleteAnggota = async (id: string) => {
+    try {
+      const target = anggota.find(m => m.id === id);
+      await deleteDoc(doc(db, 'anggota', id));
+      await addLog('Hapus Anggota', `Menghapus anggota ${target?.name || id} dari database`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `anggota/${id}`);
+    }
   };
 
   // —— SAVINGS (SIMPANAN) CONTROLLER ——
-  const addSimpanan = (data: Omit<Simpanan, 'id' | 'memberName' | 'memberNumber'>) => {
+  const addSimpanan = async (data: Omit<Simpanan, 'id' | 'memberName' | 'memberNumber'>) => {
     const memberObj = anggota.find(m => m.id === data.memberId);
     if (!memberObj) return;
 
@@ -379,71 +432,71 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
       memberNumber: memberObj.memberNumber
     };
 
-    setSimpanan(prev => [newTransaction, ...prev]);
+    try {
+      await setDoc(doc(db, 'simpanan', newId), newTransaction);
 
-    // Create automatically formatted bookkeeping journal entry & update cash register log
-    const amountVal = data.amount;
-    const isSetor = data.mutation === 'setor';
-    
-    // Choose specific account depending on type
-    let coaTargetCode = '2103'; // sukarela default
-    let coaTargetName = 'Simpanan Sukarela Anggota';
-    if (data.type === 'pokok') {
-      coaTargetCode = '2101';
-      coaTargetName = 'Simpanan Pokok Anggota';
-    } else if (data.type === 'wajib') {
-      coaTargetCode = '2102';
-      coaTargetName = 'Simpanan Wajib Anggota';
-    }
-
-    if (isSetor) {
-      // Setor Simpanan: Debits Kas, Credits Simpanan Liabilities
-      postAutoJournal(
-        `Setoran Simpanan ${data.type.toUpperCase()} - ${memberObj.name}`,
-        [{ code: '1101', name: 'Kas Utama (Brankas)', amount: amountVal }],
-        [{ code: coaTargetCode, name: coaTargetName, amount: amountVal }]
-      );
+      const amountVal = data.amount;
+      const isSetor = data.mutation === 'setor';
       
-      const newKas: KasEntry = {
-        id: `kas-${Date.now()}`,
-        date: data.date,
-        type: 'masuk',
-        category: `Setoran Simpanan ${data.type}`,
-        amount: amountVal,
-        description: `Setoran simpanan ${data.type} oleh ${memberObj.name} (${memberObj.memberNumber})`,
-        createdBy: data.createdBy
-      };
-      setKas(prev => [newKas, ...prev]);
-    } else {
-      // Penarikan Simpanan: Debits Simpanan Liabilities, Credits Kas
-      postAutoJournal(
-        `Penarikan Simpanan ${data.type.toUpperCase()} - ${memberObj.name}`,
-        [{ code: coaTargetCode, name: coaTargetName, amount: amountVal }],
-        [{ code: '1101', name: 'Kas Utama (Brankas)', amount: amountVal }]
-      );
+      let coaTargetCode = '2103'; // sukarela default
+      let coaTargetName = 'Simpanan Sukarela Anggota';
+      if (data.type === 'pokok') {
+        coaTargetCode = '2101';
+        coaTargetName = 'Simpanan Pokok Anggota';
+      } else if (data.type === 'wajib') {
+        coaTargetCode = '2102';
+        coaTargetName = 'Simpanan Wajib Anggota';
+      }
 
-      const newKas: KasEntry = {
-        id: `kas-${Date.now()}`,
-        date: data.date,
-        type: 'keluar',
-        category: `Penarikan Simpanan ${data.type}`,
-        amount: amountVal,
-        description: `Penarikan simpanan ${data.type} oleh ${memberObj.name} (${memberObj.memberNumber})`,
-        createdBy: data.createdBy
-      };
-      setKas(prev => [newKas, ...prev]);
+      if (isSetor) {
+        await postAutoJournal(
+          `Setoran Simpanan ${data.type.toUpperCase()} - ${memberObj.name}`,
+          [{ code: '1101', name: 'Kas Utama (Brankas)', amount: amountVal }],
+          [{ code: coaTargetCode, name: coaTargetName, amount: amountVal }]
+        );
+        
+        const newKas: KasEntry = {
+          id: `kas-${Date.now()}`,
+          date: data.date,
+          type: 'masuk',
+          category: `Setoran Simpanan ${data.type}`,
+          amount: amountVal,
+          description: `Setoran simpanan ${data.type} oleh ${memberObj.name} (${memberObj.memberNumber})`,
+          createdBy: data.createdBy
+        };
+        await setDoc(doc(db, 'kas', newKas.id), newKas);
+      } else {
+        await postAutoJournal(
+          `Penarikan Simpanan ${data.type.toUpperCase()} - ${memberObj.name}`,
+          [{ code: coaTargetCode, name: coaTargetName, amount: amountVal }],
+          [{ code: '1101', name: 'Kas Utama (Brankas)', amount: amountVal }]
+        );
+
+        const newKas: KasEntry = {
+          id: `kas-${Date.now()}`,
+          date: data.date,
+          type: 'keluar',
+          category: `Penarikan Simpanan ${data.type}`,
+          amount: amountVal,
+          description: `Penarikan simpanan ${data.type} oleh ${memberObj.name} (${memberObj.memberNumber})`,
+          createdBy: data.createdBy
+        };
+        await setDoc(doc(db, 'kas', newKas.id), newKas);
+      }
+
+      await addLog('Setoran/Penarikan', `Mencatat mutasi ${data.mutation} Rp ${data.amount.toLocaleString()} untuk simpanan ${data.type} atas nama ${memberObj.name}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `simpanan/${newId}`);
     }
-
-    addLog('Setoran/Penarikan', `Mencatat mutasi ${data.mutation} Rp ${data.amount.toLocaleString()} untuk simpanan ${data.type} atas nama ${memberObj.name}`);
   };
 
   // —— LOANS (PINJAMAN) CONTROLLER ——
-  const applyPinjaman = (data: Omit<Pinjaman, 'id' | 'memberName' | 'memberNumber' | 'monthlyInstallment' | 'remainingBalance' | 'status'>) => {
+  const applyPinjaman = async (
+    data: Omit<Pinjaman, 'id' | 'memberName' | 'memberNumber' | 'monthlyInstallment' | 'remainingBalance' | 'status'>
+  ) => {
     const memberObj = anggota.find(m => m.id === data.memberId);
     if (!memberObj) return;
 
-    // Standard annuity calculation: interest is simple flat interest monthly or daily
-    // e.g. yearly rate = 12%. Flat interest rate = 1% per month or daily flat rate.
     const isDaily = data.installmentFrequency === 'daily';
     const rate = isDaily
       ? (data.interestRate / 100) / 360
@@ -463,11 +516,15 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
       status: 'pending'
     };
 
-    setPinjaman(prev => [newLoan, ...prev]);
-    addLog('Pengajuan Pinjaman', `Mengajukan pinjaman ${data.type.replace('_',' ')} senilai Rp ${data.amount.toLocaleString()} oleh ${memberObj.name}`);
+    try {
+      await setDoc(doc(db, 'pinjaman', newId), newLoan);
+      await addLog('Pengajuan Pinjaman', `Mengajukan pinjaman ${data.type.replace('_',' ')} senilai Rp ${data.amount.toLocaleString()} oleh ${memberObj.name}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `pinjaman/${newId}`);
+    }
   };
 
-  const approvePinjaman = (id: string, approvedBy: string) => {
+  const approvePinjaman = async (id: string, approvedBy: string) => {
     const loan = pinjaman.find(l => l.id === id);
     if (!loan) return;
 
@@ -478,73 +535,75 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
       approvalDate: new Date().toISOString().split('T')[0]
     };
 
-    // Auto Post Journal on Pinjaman Disbursement (Cair):
-    // Debits Piutang Pinjaman Anggota (1201), Credits Kas (1101)
-    postAutoJournal(
-      `Pencairan Pinjaman ${loan.type.toUpperCase()} - ${loan.memberName}`,
-      [{ code: '1201', name: 'Piutang Pinjaman Anggota', amount: loan.amount }],
-      [{ code: '1101', name: 'Kas Utama (Brankas)', amount: loan.amount }]
-    );
+    try {
+      await setDoc(doc(db, 'pinjaman', id), updatedLoan);
 
-    // Auto-insert Kas Keluar
-    const cKas: KasEntry = {
-      id: `kas-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      type: 'keluar',
-      category: 'Pencairan Pinjaman Anggota',
-      amount: loan.amount,
-      description: `Pencairan dana pinjaman untuk ${loan.memberName} (${loan.memberNumber})`,
-      createdBy: approvedBy
-    };
-    setKas(prev => [cKas, ...prev]);
+      await postAutoJournal(
+        `Pencairan Pinjaman ${loan.type.toUpperCase()} - ${loan.memberName}`,
+        [{ code: '1201', name: 'Piutang Pinjaman Anggota', amount: loan.amount }],
+        [{ code: '1101', name: 'Kas Utama (Brankas)', amount: loan.amount }]
+      );
 
-    // Multi-month/day Installments generated dynamically so she can pay them on Angsuran UI!
-    const generatedInstallments: Angsuran[] = [];
-    const isDaily = loan.installmentFrequency === 'daily';
-    const divisor = isDaily ? 360 : 12;
-    const principal = loan.amount / loan.tenor;
-    const interest = loan.amount * ((loan.interestRate / 100) / divisor);
+      const cKas: KasEntry = {
+        id: `kas-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        type: 'keluar',
+        category: 'Pencairan Pinjaman Anggota',
+        amount: loan.amount,
+        description: `Pencairan dana pinjaman untuk ${loan.memberName} (${loan.memberNumber})`,
+        createdBy: approvedBy
+      };
+      await setDoc(doc(db, 'kas', cKas.id), cKas);
 
-    for (let i = 1; i <= loan.tenor; i++) {
-      const dueDate = new Date();
-      if (isDaily) {
-        dueDate.setDate(dueDate.getDate() + i);
-      } else {
-        dueDate.setMonth(dueDate.getMonth() + i);
+      const isDaily = loan.installmentFrequency === 'daily';
+      const divisor = isDaily ? 360 : 12;
+      const principal = loan.amount / loan.tenor;
+      const interest = loan.amount * ((loan.interestRate / 100) / divisor);
+
+      for (let i = 1; i <= loan.tenor; i++) {
+        const dueDate = new Date();
+        if (isDaily) {
+          dueDate.setDate(dueDate.getDate() + i);
+        } else {
+          dueDate.setMonth(dueDate.getMonth() + i);
+        }
+        
+        const instId = `ang-sch-${loan.id}-${i}`;
+        const newInstallment: Angsuran = {
+          id: instId,
+          loanId: loan.id,
+          memberId: loan.memberId,
+          memberName: loan.memberName,
+          memberNumber: loan.memberNumber,
+          date: dueDate.toISOString().split('T')[0],
+          installmentNumber: i,
+          amount: loan.monthlyInstallment,
+          principal: Math.round(principal),
+          interest: Math.round(interest),
+          penalty: 0,
+          status: 'unpaid'
+        };
+        await setDoc(doc(db, 'angsuran', instId), newInstallment);
       }
-      
-      generatedInstallments.push({
-        id: `ang-sch-${loan.id}-${i}`,
-        loanId: loan.id,
-        memberId: loan.memberId,
-        memberName: loan.memberName,
-        memberNumber: loan.memberNumber,
-        date: dueDate.toISOString().split('T')[0],
-        installmentNumber: i,
-        amount: loan.monthlyInstallment,
-        principal: Math.round(principal),
-        interest: Math.round(interest),
-        penalty: 0,
-        status: 'unpaid'
-      });
-    }
 
-    setPinjaman(prevLoans => prevLoans.map(l => l.id === id ? updatedLoan : l));
-    setAngsuran(prev => {
-      const filtered = prev.filter(a => a.loanId !== id);
-      return [...generatedInstallments, ...filtered];
-    });
-    addLog('Persetujuan Pinjaman', `Menyetujui pinjaman Rp ${loan.amount.toLocaleString()} milik ${loan.memberName}`);
+      await addLog('Persetujuan Pinjaman', `Menyetujui pinjaman Rp ${loan.amount.toLocaleString()} milik ${loan.memberName}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `pinjaman/${id}`);
+    }
   };
 
-  const rejectPinjaman = (id: string) => {
-    setPinjaman(prev => prev.map(l => l.id === id ? { ...l, status: 'ditolak' } : l));
-    const target = pinjaman.find(l => l.id === id);
-    addLog('Penolakan Pinjaman', `Menolak pengajuan pinjaman Rp ${target?.amount.toLocaleString()} milik ${target?.memberName}`);
+  const rejectPinjaman = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'pinjaman', id), { status: 'ditolak' });
+      const target = pinjaman.find(l => l.id === id);
+      await addLog('Penolakan Pinjaman', `Menolak pengajuan pinjaman Rp ${target?.amount.toLocaleString()} milik ${target?.memberName}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `pinjaman/${id}`);
+    }
   };
 
   // —— REPAYMENT (ANGSURAN) CONTROLLER ——
-  const payAngsuran = (angsuranId: string, penalty: number, createdBy: string, collectorName?: string) => {
+  const payAngsuran = async (angsuranId: string, penalty: number, createdBy: string, collectorName?: string) => {
     const target = angsuran.find(item => item.id === angsuranId);
     if (!target) return;
 
@@ -552,7 +611,6 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const memberNameSaved = target.memberName;
     const totalAmt = target.amount + penalty;
 
-    // Perform Bookkeeping Double-Entry Accounting outside the updater call!
     const debits = [{ code: '1101', name: 'Kas Utama (Brankas)', amount: totalAmt }];
     const credits = [
       { code: '1201', name: 'Piutang Pinjaman Anggota', amount: target.principal },
@@ -562,131 +620,144 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
       credits.push({ code: '4103', name: 'Pendapatan Denda Keterlambatan', amount: penalty });
     }
 
-    postAutoJournal(
-      `Bayar Angsuran #${target.installmentNumber} - ${target.memberName}` + (collectorName ? ` (Ditagih: ${collectorName})` : ''),
-      debits,
-      credits
-    );
+    try {
+      await postAutoJournal(
+        `Bayar Angsuran #${target.installmentNumber} - ${target.memberName}` + (collectorName ? ` (Ditagih: ${collectorName})` : ''),
+        debits,
+        credits
+      );
 
-    // Add cash received record
-    const cKas: KasEntry = {
-      id: `kas-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      type: 'masuk',
-      category: 'Pembayaran Angsuran Pinjaman',
-      amount: totalAmt,
-      description: `Pembayaran angsuran ke-${target.installmentNumber} untuk pinjaman ${target.memberName} (${target.memberNumber})` + (collectorName ? ` (Karyawan Penagih: ${collectorName})` : ''),
-      createdBy
-    };
-    setKas(prev => [cKas, ...prev]);
+      const cKas: KasEntry = {
+        id: `kas-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        type: 'masuk',
+        category: 'Pembayaran Angsuran Pinjaman',
+        amount: totalAmt,
+        description: `Pembayaran angsuran ke-${target.installmentNumber} untuk pinjaman ${target.memberName} (${target.memberNumber})` + (collectorName ? ` (Karyawan Penagih: ${collectorName})` : ''),
+        createdBy
+      };
+      await setDoc(doc(db, 'kas', cKas.id), cKas);
 
-    const updatedInstallment: Angsuran = {
-      ...target,
-      penalty,
-      totalPaid: totalAmt,
-      paymentDate: new Date().toISOString().split('T')[0],
-      status: 'paid',
-      createdBy,
-      collectorName: collectorName || '-'
-    };
+      const updatedInstallment: Angsuran = {
+        ...target,
+        penalty,
+        totalPaid: totalAmt,
+        paymentDate: new Date().toISOString().split('T')[0],
+        status: 'paid',
+        createdBy,
+        collectorName: collectorName || '-'
+      };
 
-    setAngsuran(prevAmort => prevAmort.map(item => item.id === angsuranId ? updatedInstallment : item));
+      await setDoc(doc(db, 'angsuran', angsuranId), updatedInstallment);
 
-    if (affectedLoanId) {
-      setPinjaman(prevLoans => {
-        return prevLoans.map(loan => {
-          if (loan.id === affectedLoanId) {
-            const principalReduction = target.principal;
-            const newRemaining = Math.max(0, loan.remainingBalance - principalReduction);
-            
-            // Recheck if all installments of this loan are paid (assumed that this one is paid as well)
-            const brotherInstallments = angsuran.filter(x => x.loanId === affectedLoanId && x.id !== angsuranId);
-            const allPaid = brotherInstallments.every(x => x.status === 'paid');
+      if (affectedLoanId) {
+        const loan = pinjaman.find(l => l.id === affectedLoanId);
+        if (loan) {
+          const principalReduction = target.principal;
+          const newRemaining = Math.max(0, loan.remainingBalance - principalReduction);
+          
+          const brotherInstallments = angsuran.filter(x => x.loanId === affectedLoanId && x.id !== angsuranId);
+          const allPaid = brotherInstallments.every(x => x.status === 'paid');
 
-            return {
-              ...loan,
-              remainingBalance: newRemaining,
-              status: (newRemaining <= 0 || allPaid) ? ('lunas' as const) : ('disetujui' as const)
-            };
-          }
-          return loan;
-        });
-      });
+          await updateDoc(doc(db, 'pinjaman', affectedLoanId), {
+            remainingBalance: newRemaining,
+            status: (newRemaining <= 0 || allPaid) ? 'lunas' : 'disetujui'
+          });
+        }
+      }
+
+      await addLog('Pembayaran Angsuran', `Melakukan input pembayaran cicilan untuk ${memberNameSaved} senilai Rp ${totalAmt.toLocaleString()}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `angsuran/${angsuranId}`);
     }
-
-    addLog('Pembayaran Angsuran', `Melakukan input pembayaran cicilan untuk ${memberNameSaved} senilai Rp ${totalAmt.toLocaleString()}`);
   };
 
   // —— CASH FLOW (KAS MOVEMENTS) ——
-  const addKas = (data: Omit<KasEntry, 'id'>) => {
+  const addKas = async (data: Omit<KasEntry, 'id'>) => {
     const newId = `kas-${Date.now()}`;
     const newKas: KasEntry = {
       ...data,
       id: newId
     };
 
-    setKas(prev => [newKas, ...prev]);
+    try {
+      await setDoc(doc(db, 'kas', newId), newKas);
 
-    // Manual Posting into COA & Journals
-    // If Kas masuk: Debits Kas (1101), Credits corresponding category of Equity/Income
-    // If Kas keluar: Debits corresponding category Expense/Asset, Credits Kas (1101)
-    if (data.type === 'masuk') {
-      postAutoJournal(
-        `Kas Masuk: ${data.category} - ${data.description}`,
-        [{ code: '1101', name: 'Kas Utama (Brankas)', amount: data.amount }],
-        [{ code: '4102', name: 'Pendapatan Operasional Lainnya', amount: data.amount }] // mock operational pendapatan
-      );
-    } else {
-      postAutoJournal(
-        `Kas Keluar: ${data.category} - ${data.description}`,
-        [{ code: '5102', name: 'Beban Operasional Lainnya', amount: data.amount }], // mock general beban
-        [{ code: '1101', name: 'Kas Utama (Brankas)', amount: data.amount }]
-      );
+      if (data.type === 'masuk') {
+        await postAutoJournal(
+          `Kas Masuk: ${data.category} - ${data.description}`,
+          [{ code: '1101', name: 'Kas Utama (Brankas)', amount: data.amount }],
+          [{ code: '4102', name: 'Pendapatan Operasional Lainnya', amount: data.amount }]
+        );
+      } else {
+        await postAutoJournal(
+          `Kas Keluar: ${data.category} - ${data.description}`,
+          [{ code: '5102', name: 'Beban Operasional Lainnya', amount: data.amount }],
+          [{ code: '1101', name: 'Kas Utama (Brankas)', amount: data.amount }]
+        );
+      }
+
+      await addLog('Kas Baru', `Memasukkan kas ${data.type} Rp ${data.amount.toLocaleString()} dengan kategori ${data.category}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `kas/${newId}`);
     }
-
-    addLog('Kas Baru', `Memasukkan kas ${data.type} Rp ${data.amount.toLocaleString()} dengan kategori ${data.category}`);
   };
 
   // —— GENERAL BOOKKEEPING COA & JOURNAL ——
-  const addJurnalEntry = (entry: Omit<JurnalEntry, 'id'>) => {
+  const addJurnalEntry = async (entry: Omit<JurnalEntry, 'id'>) => {
     const newId = `jr-${Date.now()}`;
     const newEntry: JurnalEntry = {
       ...entry,
       id: newId
     };
 
-    setJurnal(prev => [newEntry, ...prev]);
+    try {
+      await setDoc(doc(db, 'jurnal', newId), newEntry);
 
-    // Update balances of targeted accounts accordingly
-    entry.items.forEach(item => {
-      adjustCOABalance(item.accountCode, item.debit, item.credit);
-    });
+      for (const item of entry.items) {
+        await adjustCOABalance(item.accountCode, item.debit, item.credit);
+      }
 
-    addLog('Transaksi Jurnal', `Menuliskan entri jurnal manual: "${entry.description}"`);
+      await addLog('Transaksi Jurnal', `Menuliskan entri jurnal manual: "${entry.description}"`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `jurnal/${newId}`);
+    }
   };
 
   // —— USER MANAGEMENT ——
-  const addUser = (data: Omit<AppUser, 'id'>) => {
+  const addUser = async (data: Omit<AppUser, 'id'>) => {
     const newId = `usr-${Date.now()}`;
     const newUser: AppUser = {
       id: newId,
       ...data
     };
-    setUsers(prev => [...prev, newUser]);
-    addLog('Tambah User', `Menambahkan pengguna sistem baru: ${data.name} (${data.role})`);
+    try {
+      await setDoc(doc(db, 'users', newId), newUser);
+      await addLog('Tambah User', `Menambahkan pengguna sistem baru: ${data.name} (${data.role})`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${newId}`);
+    }
   };
 
-  const updateUser = (id: string, data: Partial<AppUser>) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } as AppUser : u));
-    const target = users.find(u => u.id === id);
-    addLog('Edit User', `Mengubah profil pengguna: ${target?.name || id}`);
+  const updateUser = async (id: string, data: Partial<AppUser>) => {
+    try {
+      await updateDoc(doc(db, 'users', id), data);
+      const target = users.find(u => u.id === id);
+      await addLog('Edit User', `Mengubah profil pengguna: ${target?.name || id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${id}`);
+    }
   };
 
-  const deleteUser = (id: string) => {
-    if (id === currentUser?.id) return; // Forbid deleting oneself
-    const target = users.find(u => u.id === id);
-    setUsers(prev => prev.filter(u => u.id !== id));
-    addLog('Hapus User', `Menghapus akses user: ${target?.name || id}`);
+  const deleteUser = async (id: string) => {
+    if (id === currentUser?.id) return;
+    try {
+      const target = users.find(u => u.id === id);
+      await deleteDoc(doc(db, 'users', id));
+      await addLog('Hapus User', `Menghapus akses user: ${target?.name || id}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+    }
   };
 
   // —— SYSTEM AND DATA UTILITIES (BACKUP & RESTORE) ——
@@ -707,39 +778,68 @@ export const CooperativeProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const restoreDatabase = (json: string): boolean => {
-    try {
-      const data = JSON.parse(json);
-      if (data.anggota && data.simpanan && data.pinjaman && data.coa) {
-        if (data.users) setUsers(data.users);
-        if (data.anggota) setAnggota(data.anggota);
-        if (data.simpanan) setSimpanan(data.simpanan);
-        if (data.pinjaman) setPinjaman(data.pinjaman);
-        if (data.angsuran) setAngsuran(data.angsuran);
-        if (data.coa) setCoa(data.coa);
-        if (data.jurnal) setJurnal(data.jurnal);
-        if (data.kas) setKas(data.kas);
-        if (data.logs) setLogs(data.logs);
-        
-        addLog('Restore', 'Berhasil memulihkan / restore database koperasi dari file backup luar');
-        return true;
+    const performRestore = async () => {
+      try {
+        const data = JSON.parse(json);
+        if (data.anggota && data.simpanan && data.pinjaman && data.coa) {
+          const collections = ['users', 'anggota', 'simpanan', 'pinjaman', 'angsuran', 'coa', 'jurnal', 'kas', 'logs'];
+          for (const col of collections) {
+            const snap = await getDocs(collection(db, col));
+            for (const docItem of snap.docs) {
+              await deleteDoc(doc(db, col, docItem.id));
+            }
+          }
+
+          const restores = [
+            { name: 'users', list: data.users || [] },
+            { name: 'anggota', list: data.anggota || [] },
+            { name: 'simpanan', list: data.simpanan || [] },
+            { name: 'pinjaman', list: data.pinjaman || [] },
+            { name: 'angsuran', list: data.angsuran || [] },
+            { name: 'coa', list: data.coa || [] },
+            { name: 'jurnal', list: data.jurnal || [] },
+            { name: 'kas', list: data.kas || [] },
+            { name: 'logs', list: data.logs || [] },
+          ];
+
+          for (const r of restores) {
+            for (const item of r.list) {
+              const docId = item.id || item.code || `item-${Date.now()}-${Math.random()}`;
+              await setDoc(doc(db, r.name, docId), item);
+            }
+          }
+
+          await addLog('Restore', 'Berhasil memulihkan / restore database koperasi dari file backup luar');
+        }
+      } catch (e) {
+        console.error('Database restore error:', e);
       }
-    } catch (e) {
-      console.error(e);
-    }
-    return false;
+    };
+    performRestore();
+    return true;
   };
 
-  const clearDatabase = () => {
-    setUsers(INITIAL_USERS);
-    setAnggota([]);
-    setSimpanan([]);
-    setPinjaman([]);
-    setAngsuran([]);
-    setCoa(INITIAL_COA);
-    setJurnal([]);
-    setKas([]);
-    setLogs([]);
-    addLog('Reset Sistem', 'Menghapus bersih seluruh data dinamis dan menyetel ulang ke bawaan');
+  const clearDatabase = async () => {
+    try {
+      const collections = ['users', 'anggota', 'simpanan', 'pinjaman', 'angsuran', 'coa', 'jurnal', 'kas', 'logs'];
+      for (const col of collections) {
+        const snap = await getDocs(collection(db, col));
+        for (const docItem of snap.docs) {
+          await deleteDoc(doc(db, col, docItem.id));
+        }
+      }
+
+      for (const user of INITIAL_USERS) {
+        await setDoc(doc(db, 'users', user.id), user);
+      }
+      for (const c of INITIAL_COA) {
+        await setDoc(doc(db, 'coa', c.code), c);
+      }
+
+      await addLog('Reset Sistem', 'Menghapus bersih seluruh data dinamis dan menyetel ulang ke bawaan');
+    } catch (error) {
+      console.error('Database clear failed:', error);
+    }
   };
 
   return (

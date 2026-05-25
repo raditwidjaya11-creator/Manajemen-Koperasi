@@ -1,35 +1,14 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 
-// Graceful fallback config
-const fallbackConfig = {
-  apiKey: "placeholder-api-key",
-  authDomain: "placeholder-auth-domain",
-  projectId: "placeholder-project-id",
-  storageBucket: "placeholder-storage-bucket",
-  messagingSenderId: "placeholder-sender-id",
-  appId: "placeholder-app-id",
-  firestoreDatabaseId: "(default)"
-};
-
-let activeConfig = fallbackConfig;
-let isRealFirebase = false;
-
-// Safe try-catch configuration loader
-try {
-  // We dynamically attempt to fetch or read from env or local file if provided
-  const configEnv = process.env.GEMINI_API_KEY; // can use as a trigger or other standard configs
-  if (configEnv && !configEnv.includes("MY_GEMINI_API_KEY")) {
-    // Real env detected
-  }
-} catch (e) {
-  // Handle dynamically
-}
+const activeConfig = firebaseConfig;
+const isRealFirebase = true;
 
 const app = getApps().length === 0 ? initializeApp(activeConfig) : getApp();
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getFirestore(app, activeConfig.firestoreDatabaseId);
 
 export { isRealFirebase };
 

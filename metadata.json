@@ -1,5 +1,5 @@
 {
-  "name": "Forsdig Simpan Pinjam",
+  "name": "Foresyndo Coop",
   "description": "Aplikasi pembukuan koperasi simpan pinjam berbasis web modern dan mobile responsive untuk admin, bendahara, kasir, dan anggota.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

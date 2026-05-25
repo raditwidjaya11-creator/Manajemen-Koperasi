@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { motion, AnimatePresence } from 'motion/react';
+import QRCode from 'qrcode';
 
 export const Angsuran: React.FC = () => {
   const { 
@@ -183,7 +184,7 @@ export const Angsuran: React.FC = () => {
   };
 
   // Receipt PDF Download wizard
-  const handleDownloadPDF = (arg: AngsuranType) => {
+  const handleDownloadPDF = async (arg: AngsuranType) => {
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -276,14 +277,40 @@ export const Angsuran: React.FC = () => {
     doc.text('TOTAL YANG DIBAYAR', 15, 145);
     doc.text(`Rp ${(arg.amount + (arg.penalty || 0)).toLocaleString()}`, 90, 145);
 
+    // Generate QR Code containing verification data
+    try {
+      const qrText = `KOPERASI FORESYNDO COOP\n` +
+                     `ID ANGSURAN: ${arg.id}\n` +
+                     `REF PINJAM : ${arg.loanId}\n` +
+                     `ANGGOTA    : ${arg.memberName} (${arg.memberNumber})\n` +
+                     `CICILAN KE : #${arg.installmentNumber}\n` +
+                     `POKOK      : Rp ${arg.principal.toLocaleString()}\n` +
+                     `JASA/BUNGA : Rp ${arg.interest.toLocaleString()}\n` +
+                     `DENDA      : Rp ${(arg.penalty || 0).toLocaleString()}\n` +
+                     `TOTAL BAYAR: Rp ${(arg.amount + (arg.penalty || 0)).toLocaleString()}\n` +
+                     `TGL BAYAR  : ${arg.paymentDate || '-'}\n` +
+                     `PENAGIH    : ${arg.collectorName || '-'}\n` +
+                     `STATUS     : REKOM REKONSILIASI KAS LUNAS`;
+      const qrDataUrl = await QRCode.toDataURL(qrText, { margin: 1 });
+      doc.addImage(qrDataUrl, 'PNG', 62, 163, 24, 24);
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text('PINDAI VERIFIKASI', 74, 161, { align: 'center' });
+    } catch (err) {
+      console.error('Failed to generate QR Code:', err);
+    }
+
     // Signatures footer blocks
     doc.setTextColor(80, 80, 80);
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(8);
+    // Left side: User signature
     doc.text('Tanda Tangan Anggota,', 20, 168);
     doc.line(15, 185, 45, 185);
     doc.text(`( ${arg.memberName.split(' ')[0]} )`, 18, 190);
 
+    // Right side: Cashier/Supervisor
     doc.text('Penerima Petugas Koperasi,', 90, 168);
     doc.line(85, 185, 115, 185);
     doc.text(`( ${arg.createdBy || cooperativeSettings?.adminName || 'Bendahara'} )`, 88, 190);
@@ -317,12 +344,12 @@ export const Angsuran: React.FC = () => {
     doc.setTextColor(255, 255, 255);
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(14);
-    doc.text('KOPERASI SIMPAN PINJAM FORSDIG', margin + 5, 23);
+    doc.text('KOPERASI FORESYNDO COOP', margin + 5, 23);
     
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(220, 245, 230);
-    doc.text('Sistem Informasi Keuangan Koperasi Simpan Pinjam Forsdig Mandiri', margin + 5, 29);
+    doc.text('Sistem Informasi Keuangan Koperasi Foresyndo Coop Mandiri', margin + 5, 29);
     doc.text(`Dicetak Oleh: ${currentUser?.name || 'Admin'} | Tanggal Cetak: ${new Date().toISOString().replace('T', ' ').substring(0, 19)} UTC`, margin + 5, 33);
 
     // Document Title

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { motion, AnimatePresence } from 'motion/react';
+import QRCode from 'qrcode';
 
 export const Simpanan: React.FC = () => {
   const { 
@@ -123,7 +124,7 @@ export const Simpanan: React.FC = () => {
   };
 
   // Receipt PDF Download via jsPDF
-  const handleDownloadPDF = (trx: SimpananType) => {
+  const handleDownloadPDF = async (trx: SimpananType) => {
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -204,9 +205,30 @@ export const Simpanan: React.FC = () => {
     doc.text('Catatan', 12, 148);
     doc.text(`: ${trx.description}`, 45, 148);
 
+    // Generate QR Code containing verification data
+    try {
+      const qrText = `KOPERASI FORESYNDO COOP\n` +
+                     `ID MUTASI : ${trx.id}\n` +
+                     `ANGGOTA   : ${trx.memberName} (${trx.memberNumber})\n` +
+                     `TANGGAL   : ${trx.date}\n` +
+                     `MUTASI    : SIMPANAN ${trx.type.toUpperCase()} (${trx.mutation === 'setor' ? 'SETORAN' : 'PENARIKAN'})\n` +
+                     `NOMINAL   : Rp ${trx.amount.toLocaleString()}\n` +
+                     `PETUGAS   : ${trx.createdBy || cooperativeSettings?.adminName || 'Kasir'}\n` +
+                     `STATUS    : TERVERIFIKASI ASLI`;
+      const qrDataUrl = await QRCode.toDataURL(qrText, { margin: 1 });
+      doc.addImage(qrDataUrl, 'PNG', 62, 163, 24, 24);
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text('PINDAI VERIFIKASI', 74, 161, { align: 'center' });
+    } catch (err) {
+      console.error('Failed to generate QR Code:', err);
+    }
+
     // Signature Block
     doc.setFontSize(9);
     doc.setFont('Helvetica', 'normal');
+    doc.setTextColor(50, 50, 50);
     // Left side: User signature
     doc.text('Penyetor / Penerima,', 20, 168);
     doc.line(15, 185, 45, 185);

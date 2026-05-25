@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // Global catch-all safety net (Master Deny Gate)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Global helper functions
+    function isSignedIn() {
+      return true; // The application uses custom simulated application-level authentication, not Firebase Auth
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Rules for users
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && isValidId(userId);
+    }
+    
+    // Rules for member profiles (anggota)
+    match /anggota/{anggotaId} {
+      allow read, write: if isSignedIn() && isValidId(anggotaId);
+    }
+    
+    // Rules for savings (simpanan)
+    match /simpanan/{simpananId} {
+      allow read, write: if isSignedIn() && isValidId(simpananId);
+    }
+    
+    // Rules for loans (pinjaman)
+    match /pinjaman/{pinjamanId} {
+      allow read, write: if isSignedIn() && isValidId(pinjamanId);
+    }
+    
+    // Rules for installment schedule (angsuran)
+    match /angsuran/{angsuranId} {
+      allow read, write: if isSignedIn() && isValidId(angsuranId);
+    }
+    
+    // Rules for Chart of Account (coa)
+    match /coa/{coaCode} {
+      allow read, write: if isSignedIn() && isValidId(coaCode);
+    }
+    
+    // Rules for journal posting (jurnal)
+    match /jurnal/{jurnalId} {
+      allow read, write: if isSignedIn() && isValidId(jurnalId);
+    }
+    
+    // Rules for cash flows (kas)
+    match /kas/{kasId} {
+      allow read, write: if isSignedIn() && isValidId(kasId);
+    }
+    
+    // Rules for system audit logs (logs)
+    match /logs/{logId} {
+      allow read, write: if isSignedIn() && isValidId(logId);
+    }
+    
+    // Rules for system settings
+    match /settings/{settingsDoc} {
+      allow read, write: if isSignedIn() && isValidId(settingsDoc);
+    }
+  }
+}

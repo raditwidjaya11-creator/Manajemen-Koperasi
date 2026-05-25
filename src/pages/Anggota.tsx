@@ -583,7 +583,7 @@ export const Anggota: React.FC = () => {
                   <div className="flex items-center justify-between border-t border-[#1b4e37] pt-2">
                     <span className="text-[6px] text-[#a3b899] font-black uppercase tracking-widest flex items-center gap-1">
                       <ShieldCheck className="h-2.5 w-2.5 text-amber-400 inline" />
-                      Forsdig Secure Network
+                      Foresyndo Secure Network
                     </span>
                     
                     {/* Simulated vector Barcode lines */}

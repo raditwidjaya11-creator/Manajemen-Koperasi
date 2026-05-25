@@ -553,7 +553,7 @@ export const Laporan: React.FC = () => {
             </div>
 
             <p className="text-[10px] text-slate-405 italic text-center">
-              Seluruh rekapitulasi data sinkron instan dengan buku besar akuntansi Koperasi Forsdig Simpan Pinjam 2026.
+              Seluruh rekapitulasi data sinkron instan dengan buku besar akuntansi Koperasi Foresyndo Coop 2026.
             </p>
           </div>
         )}
